@@ -1193,6 +1193,7 @@ message BidRequest {
       TABLET = 5;
       CONNECTED_DEVICE = 6;
       SET_TOP_BOX = 7;
+      SMS = 1001;
     }
 
     /*
