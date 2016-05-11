@@ -31,6 +31,7 @@ import com.google.openrtb.OpenRtb.NativeRequest.Asset.Data.DataAssetType;
 import com.google.openrtb.OpenRtb.NativeRequest.Asset.Image.ImageAssetType;
 import com.google.openrtb.OpenRtb.NativeRequest.LayoutId;
 import com.google.openrtb.OpenRtb.NativeResponse;
+import com.google.openrtb.util.ProtoUtils;
 import com.google.protobuf.ByteString;
 
 import com.fasterxml.jackson.core.JsonParser;
@@ -42,8 +43,8 @@ import java.io.Reader;
 
 /**
  * Desserializes OpenRTB {@link NativeRequest}/{@link NativeResponse} messages from JSON.
- * <p>
- * This class is threadsafe.
+ *
+ * <p>This class is threadsafe.
  */
 public class OpenRtbNativeJsonReader extends AbstractOpenRtbJsonReader {
   private OpenRtbJsonReader coreReader;
@@ -70,7 +71,7 @@ public class OpenRtbNativeJsonReader extends AbstractOpenRtbJsonReader {
    * Desserializes a {@link NativeRequest} from JSON, streamed from a {@link Reader}.
    */
   public NativeRequest readNativeRequest(Reader reader) throws IOException {
-    return readNativeRequest(factory().getJsonFactory().createParser(reader)).build();
+    return ProtoUtils.built(readNativeRequest(factory().getJsonFactory().createParser(reader)));
   }
 
   /**
@@ -78,7 +79,7 @@ public class OpenRtbNativeJsonReader extends AbstractOpenRtbJsonReader {
    */
   public NativeRequest readNativeRequest(InputStream is) throws IOException {
     try {
-      return readNativeRequest(factory().getJsonFactory().createParser(is)).build();
+      return ProtoUtils.built(readNativeRequest(factory().getJsonFactory().createParser(is)));
     } finally {
       Closeables.closeQuietly(is);
     }
@@ -89,19 +90,30 @@ public class OpenRtbNativeJsonReader extends AbstractOpenRtbJsonReader {
    * which allows several choices of input and encoding.
    */
   public final NativeRequest.Builder readNativeRequest(JsonParser par) throws IOException {
+    if (emptyToNull(par)) {
+      return null;
+    }
     NativeRequest.Builder req = NativeRequest.newBuilder();
+    boolean rootNativeField = false;
+    boolean firstField = true;
     for (startObject(par); endObject(par); par.nextToken()) {
       String fieldName = getCurrentName(par);
-      if (par.nextToken() != JsonToken.VALUE_NULL && "native".equals(fieldName)) {
-        for (startObject(par); endObject(par); par.nextToken()) {
-          fieldName = getCurrentName(par);
-          if (par.nextToken() != JsonToken.VALUE_NULL) {
-            readNativeRequestField(par, req, fieldName);
+      if (par.nextToken() != JsonToken.VALUE_NULL) {
+        if (firstField) {
+          firstField = false;
+          if ((rootNativeField = "native".equals(fieldName))) {
+            startObject(par);
+            fieldName = getCurrentName(par);
+            par.nextToken();
           }
         }
-      } else {
-        par.skipChildren();
+        if (par.getCurrentToken() != JsonToken.VALUE_NULL) {
+          readNativeRequestField(par, req, fieldName);
+        }
       }
+    }
+    if (rootNativeField) {
+      endObject(par);
     }
     return req;
   }
@@ -112,11 +124,19 @@ public class OpenRtbNativeJsonReader extends AbstractOpenRtbJsonReader {
       case "ver":
         req.setVer(par.getText());
         break;
-      case "layout":
-        req.setLayout(LayoutId.valueOf(par.getIntValue()));
+      case "layout": {
+          LayoutId value = LayoutId.valueOf(par.getIntValue());
+          if (checkEnum(value)) {
+            req.setLayout(value);
+          }
+        }
         break;
-      case "adunit":
-        req.setAdunit(AdUnitId.valueOf(par.getIntValue()));
+      case "adunit": {
+          AdUnitId value = AdUnitId.valueOf(par.getIntValue());
+          if (checkEnum(value)) {
+            req.setAdunit(value);
+          }
+        }
         break;
       case "plcmtcnt":
         req.setPlcmtcnt(par.getIntValue());
@@ -211,8 +231,12 @@ public class OpenRtbNativeJsonReader extends AbstractOpenRtbJsonReader {
       JsonParser par, NativeRequest.Asset.Image.Builder image, String fieldName)
       throws IOException {
     switch (fieldName) {
-      case "type":
-        image.setType(ImageAssetType.valueOf(par.getIntValue()));
+      case "type": {
+          ImageAssetType value = ImageAssetType.valueOf(par.getIntValue());
+          if (checkEnum(value)) {
+            image.setType(value);
+          }
+        }
         break;
       case "w":
         image.setW(par.getIntValue());
@@ -250,8 +274,12 @@ public class OpenRtbNativeJsonReader extends AbstractOpenRtbJsonReader {
   protected void readReqDataField(
       JsonParser par, NativeRequest.Asset.Data.Builder data, String fieldName) throws IOException {
     switch (fieldName) {
-      case "type":
-        data.setType(DataAssetType.valueOf(par.getIntValue()));
+      case "type": {
+          DataAssetType value = DataAssetType.valueOf(par.getIntValue());
+          if (checkEnum(value)) {
+            data.setType(value);
+          }
+        }
         break;
       case "len":
         data.setLen(par.getIntValue());
@@ -279,7 +307,7 @@ public class OpenRtbNativeJsonReader extends AbstractOpenRtbJsonReader {
    * Desserializes a {@link NativeResponse} from JSON, streamed from a {@link Reader}.
    */
   public NativeResponse readNativeResponse(Reader reader) throws IOException {
-    return readNativeResponse(factory().getJsonFactory().createParser(reader)).build();
+    return ProtoUtils.built(readNativeResponse(factory().getJsonFactory().createParser(reader)));
   }
 
   /**
@@ -287,7 +315,7 @@ public class OpenRtbNativeJsonReader extends AbstractOpenRtbJsonReader {
    */
   public NativeResponse readNativeResponse(InputStream is) throws IOException {
     try {
-      return readNativeResponse(factory().getJsonFactory().createParser(is)).build();
+      return ProtoUtils.built(readNativeResponse(factory().getJsonFactory().createParser(is)));
     } finally {
       Closeables.closeQuietly(is);
     }
@@ -298,19 +326,30 @@ public class OpenRtbNativeJsonReader extends AbstractOpenRtbJsonReader {
    * which allows several choices of input and encoding.
    */
   public final NativeResponse.Builder readNativeResponse(JsonParser par) throws IOException {
+    if (emptyToNull(par)) {
+      return null;
+    }
     NativeResponse.Builder resp = NativeResponse.newBuilder();
+    boolean rootNativeField = false;
+    boolean firstField = true;
     for (startObject(par); endObject(par); par.nextToken()) {
       String fieldName = getCurrentName(par);
-      if (par.nextToken() != JsonToken.VALUE_NULL && "native".equals(fieldName)) {
-        for (startObject(par); endObject(par); par.nextToken()) {
-          fieldName = getCurrentName(par);
-          if (par.nextToken() != JsonToken.VALUE_NULL) {
-            readNativeResponseField(par, resp, fieldName);
+      if (par.nextToken() != JsonToken.VALUE_NULL) {
+        if (firstField) {
+          firstField = false;
+          if ((rootNativeField = "native".equals(fieldName))) {
+            startObject(par);
+            fieldName = getCurrentName(par);
+            par.nextToken();
           }
         }
-      } else {
-        par.skipChildren();
+        if (par.getCurrentToken() != JsonToken.VALUE_NULL) {
+          readNativeResponseField(par, resp, fieldName);
+        }
       }
+    }
+    if (rootNativeField) {
+      endObject(par);
     }
     return resp;
   }

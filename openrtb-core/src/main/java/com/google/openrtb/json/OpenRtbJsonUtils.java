@@ -82,19 +82,8 @@ public class OpenRtbJsonUtils {
     }
   }
 
-  @Deprecated
-  public static double nextDoubleValue(JsonParser par) throws IOException {
-    par.nextToken();
-    return Double.parseDouble(par.getText());
-  }
-
   public static double getDoubleValue(JsonParser par) throws IOException {
     return Double.parseDouble(par.getText());
-  }
-
-  @Deprecated
-  public static boolean nextIntBoolValue(JsonParser par) throws IOException {
-    return par.nextIntValue(0) != 0;
   }
 
   public static boolean getIntBoolValue(JsonParser par) throws IOException {
@@ -146,6 +135,17 @@ public class OpenRtbJsonUtils {
     if (!data.isEmpty()) {
       gen.writeArrayFieldStart(fieldName);
       for (Integer d : data) {
+        gen.writeNumber(d);
+      }
+      gen.writeEndArray();
+    }
+  }
+
+  public static void writeLongs(String fieldName, List<Long> data, JsonGenerator gen)
+      throws IOException {
+    if (!data.isEmpty()) {
+      gen.writeArrayFieldStart(fieldName);
+      for (Long d : data) {
         gen.writeNumber(d);
       }
       gen.writeEndArray();

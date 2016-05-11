@@ -16,8 +16,8 @@
 
 package com.google.openrtb.json;
 
+import static com.google.common.truth.Truth.assertThat;
 import static java.util.Arrays.asList;
-import static org.junit.Assert.assertEquals;
 
 import com.google.openrtb.OpenRtb.BidRequest;
 import com.google.openrtb.OpenRtb.BidRequest.Imp.Video.VideoBidResponseProtocol;
@@ -56,15 +56,21 @@ public class OpenRtbNativeJsonTest {
         .addAssets(NativeRequest.Asset.newBuilder()
             .setId(1)
             .setTitle(NativeRequest.Asset.Title.newBuilder()
-                .setLen(100))
-            .setImg(NativeRequest.Asset.Image.newBuilder())
+                .setLen(100)))
+        .addAssets(NativeRequest.Asset.newBuilder()
+            .setId(2)
+            .setImg(NativeRequest.Asset.Image.newBuilder()))
+        .addAssets(NativeRequest.Asset.newBuilder()
+            .setId(3)
             .setVideo(BidRequest.Imp.Video.newBuilder()
                 .setMinduration(100)
-                .setMaxduration(200))
+                .setMaxduration(200)))
+        .addAssets(NativeRequest.Asset.newBuilder()
+            .setId(4)
             .setData(NativeRequest.Asset.Data.newBuilder()
                 .setType(NativeRequest.Asset.Data.DataAssetType.SPONSORED)))
         .addAssets(NativeRequest.Asset.newBuilder()
-            .setId(1))
+            .setId(5))
         .build());
     testRequest(newJsonFactory(), NativeRequest.newBuilder().build());
   }
@@ -81,14 +87,20 @@ public class OpenRtbNativeJsonTest {
             .setId(1)
             .setRequired(true)
             .setTitle(NativeResponse.Asset.Title.newBuilder()
-                .setText("title"))
-            .setImg(NativeResponse.Asset.Image.newBuilder())
-            .setVideo(NativeResponse.Asset.Video.newBuilder())
+                .setText("title")))
+        .addAssets(NativeResponse.Asset.newBuilder()
+            .setId(2)
+            .setImg(NativeResponse.Asset.Image.newBuilder()))
+        .addAssets(NativeResponse.Asset.newBuilder()
+            .setId(3)
+            .setVideo(NativeResponse.Asset.Video.newBuilder()))
+        .addAssets(NativeResponse.Asset.newBuilder()
+            .setId(4)
             .setData(NativeResponse.Asset.Data.newBuilder()
                 .setValue("v"))
             .setLink(NativeResponse.Link.newBuilder()))
         .addAssets(NativeResponse.Asset.newBuilder()
-            .setId(1))
+            .setId(5))
         .setLink(NativeResponse.Link.newBuilder())
         .build());
     testResponse(newJsonFactory(), NativeResponse.newBuilder()
@@ -96,18 +108,25 @@ public class OpenRtbNativeJsonTest {
         .build());
   }
 
+  @Test
+  public void testRequest_emptyToNull() throws IOException {
+    OpenRtbNativeJsonReader reader = OpenRtbJsonFactory.create().setStrict(false).newNativeReader();
+    assertThat(reader.readNativeRequest("")).isNull();
+    assertThat(reader.readNativeResponse("")).isNull();
+  }
+
   static void testRequest(OpenRtbJsonFactory jsonFactory, NativeRequest req) throws IOException {
     String jsonReq = jsonFactory.newNativeWriter().writeNativeRequest(req);
     logger.info(jsonReq);
     NativeRequest req2 = jsonFactory.newNativeReader().readNativeRequest(jsonReq);
-    assertEquals(req, req2);
+    assertThat(req2).isEqualTo(req);
   }
 
   static void testResponse(OpenRtbJsonFactory jsonFactory, NativeResponse resp) throws IOException {
     String jsonResp = jsonFactory.newNativeWriter().writeNativeResponse(resp);
     logger.info(jsonResp);
     NativeResponse resp2 = jsonFactory.newNativeReader().readNativeResponse(jsonResp);
-    assertEquals(resp, resp2);
+    assertThat(resp2).isEqualTo(resp);
   }
 
   static OpenRtbJsonFactory newJsonFactory() {
@@ -116,7 +135,7 @@ public class OpenRtbNativeJsonTest {
         // NativeRequest Readers
         .register(new Test1Reader<NativeRequest.Builder>(TestNExt.testNRequest1),
             NativeRequest.Builder.class)
-        .register(new Test2Reader<NativeRequest.Builder>(TestNExt.testNRequest2),
+        .register(new Test2Reader<NativeRequest.Builder>(TestNExt.testNRequest2, "test2ext"),
             NativeRequest.Builder.class)
         .register(new Test1Reader<NativeRequest.Asset.Builder>(TestNExt.testNReqAsset),
             NativeRequest.Asset.Builder.class)
@@ -131,7 +150,7 @@ public class OpenRtbNativeJsonTest {
         // NativeResponse Readers
         .register(new Test1Reader<NativeResponse.Builder>(TestNExt.testNResponse1),
             NativeResponse.Builder.class)
-        .register(new Test2Reader<NativeResponse.Builder>(TestNExt.testNResponse2),
+        .register(new Test2Reader<NativeResponse.Builder>(TestNExt.testNResponse2, "test2ext"),
             NativeResponse.Builder.class)
         .register(new Test1Reader<NativeResponse.Link.Builder>(TestNExt.testNRespLink),
             NativeResponse.Link.Builder.class)
@@ -159,8 +178,8 @@ public class OpenRtbNativeJsonTest {
         .register(new Test1Writer(), Test1.class, NativeResponse.Asset.Image.class)
         .register(new Test1Writer(), Test1.class, NativeResponse.Asset.Video.class)
         .register(new Test1Writer(), Test1.class, NativeResponse.Asset.Data.class)
-        .register(new Test2Writer(), Test2.class, NativeRequest.class)
-        .register(new Test2Writer(), Test2.class, NativeResponse.class);
+        .register(new Test2Writer("test2ext"), Test2.class, NativeRequest.class)
+        .register(new Test2Writer("test2ext"), Test2.class, NativeResponse.class);
   }
 
   static NativeRequest.Builder newNativeRequest() {
@@ -176,6 +195,9 @@ public class OpenRtbNativeJsonTest {
             .setTitle(NativeRequest.Asset.Title.newBuilder()
                 .setLen(100)
                 .setExtension(TestNExt.testNReqTitle, test1))
+            .setExtension(TestNExt.testNReqAsset, test1))
+        .addAssets(NativeRequest.Asset.newBuilder()
+            .setId(2)
             .setImg(NativeRequest.Asset.Image.newBuilder()
                 .setType(NativeRequest.Asset.Image.ImageAssetType.ICON)
                 .setW(2)
@@ -183,18 +205,21 @@ public class OpenRtbNativeJsonTest {
                 .setH(3)
                 .setHmin(4)
                 .addAllMimes(asList("a", "b"))
-                .setExtension(TestNExt.testNReqImage, test1))
+                .setExtension(TestNExt.testNReqImage, test1)))
+        .addAssets(NativeRequest.Asset.newBuilder()
+            .setId(3)
             .setVideo(BidRequest.Imp.Video.newBuilder()
                 .addAllMimes(asList("a", "b"))
                 .setMinduration(100)
                 .setMaxduration(200)
                 .addProtocols(VideoBidResponseProtocol.VAST_3_0)
-                .setExtension(TestExt.testVideo, test1))
+                .setExtension(TestExt.testVideo, test1)))
+        .addAssets(NativeRequest.Asset.newBuilder()
+            .setId(4)
             .setData(NativeRequest.Asset.Data.newBuilder()
                 .setType(NativeRequest.Asset.Data.DataAssetType.SPONSORED)
                 .setLen(10)
-                .setExtension(TestNExt.testNReqData, test1))
-            .setExtension(TestNExt.testNReqAsset, test1))
+                .setExtension(TestNExt.testNReqData, test1)))
         .setExtension(TestNExt.testNRequest1, test1)
         .setExtension(TestNExt.testNRequest2, test2);
   }
@@ -208,24 +233,30 @@ public class OpenRtbNativeJsonTest {
             .setTitle(NativeResponse.Asset.Title.newBuilder()
                 .setText("title")
                 .setExtension(TestNExt.testNRespTitle, test1))
-            .setImg(NativeResponse.Asset.Image.newBuilder()
-                .setUrl("url")
-                .setW(2)
-                .setH(3)
-                .setExtension(TestNExt.testNRespImage, test1))
-            .setVideo(NativeResponse.Asset.Video.newBuilder()
-                .addAllVasttag(asList("a", "b"))
-                .setExtension(TestNExt.testNRespVideo, test1))
-            .setData(NativeResponse.Asset.Data.newBuilder()
-                .setLabel("l")
-                .setValue("v")
-                .setExtension(TestNExt.testNRespData, test1))
             .setLink(NativeResponse.Link.newBuilder()
                 .setUrl("url")
                 .addAllClicktrackers(asList("a", "b"))
                 .setFallback("f")
                 .setExtension(TestNExt.testNRespLink, test1))
             .setExtension(TestNExt.testNRespAsset, test1))
+        .addAssets(NativeResponse.Asset.newBuilder()
+            .setId(2)
+            .setImg(NativeResponse.Asset.Image.newBuilder()
+                .setUrl("url")
+                .setW(2)
+                .setH(3)
+                .setExtension(TestNExt.testNRespImage, test1)))
+        .addAssets(NativeResponse.Asset.newBuilder()
+            .setId(2)
+            .setVideo(NativeResponse.Asset.Video.newBuilder()
+                .addAllVasttag(asList("a", "b"))
+                .setExtension(TestNExt.testNRespVideo, test1)))
+        .addAssets(NativeResponse.Asset.newBuilder()
+            .setId(2)
+            .setData(NativeResponse.Asset.Data.newBuilder()
+                .setLabel("l")
+                .setValue("v")
+                .setExtension(TestNExt.testNRespData, test1)))
         .setLink(NativeResponse.Link.newBuilder()
             .setUrl("url")
             .addAllClicktrackers(asList("a", "b"))

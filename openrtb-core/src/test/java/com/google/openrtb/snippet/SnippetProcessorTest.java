@@ -16,12 +16,11 @@
 
 package com.google.openrtb.snippet;
 
+import static com.google.common.truth.Truth.assertThat;
 import static java.util.Arrays.asList;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertSame;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.openrtb.OpenRtb.BidRequest;
 import com.google.openrtb.OpenRtb.BidRequest.Imp;
 import com.google.openrtb.OpenRtb.BidResponse;
@@ -55,9 +54,24 @@ public class SnippetProcessorTest {
           .addAll(asList(TestMacros.values()))
           .build();
     }
+
     @Override protected void processMacroAt(
         SnippetProcessorContext ctx, StringBuilder sb, SnippetMacroType macroDef) {
-      sb.append("#");
+      if (macroDef instanceof TestMacros) {
+        switch ((TestMacros) macroDef) {
+          case TEST:
+            sb.append("#");
+            break;
+
+          case MACRO_NREC:
+            sb.append(TestMacros.TEST.key());
+            break;
+
+          case MACRO_REC:
+            sb.append(TestMacros.MACRO_REC.key());
+            break;
+        }
+      }
     }
   };
 
@@ -66,9 +80,9 @@ public class SnippetProcessorTest {
     SnippetProcessorContext ctx = new SnippetProcessorContext(req, resp);
     ctx.setBid(bid);
     TestUtil.testCommonMethods(ctx);
-    assertSame(req, ctx.request());
-    assertSame(resp, ctx.response());
-    assertSame(bid, ctx.getBid());
+    assertThat(ctx.request()).isSameAs(req);
+    assertThat(ctx.response()).isSameAs(resp);
+    assertThat(ctx.getBid()).isSameAs(bid);
   }
 
   @Test
@@ -76,51 +90,52 @@ public class SnippetProcessorTest {
     SnippetProcessorContext ctx = new SnippetProcessorContext(req, resp);
     ctx.setBid(bid);
     String snippet = OpenRtbMacros.AUCTION_ID.key();
-    assertSame(snippet, SnippetProcessor.NULL.process(ctx, snippet));
+    assertThat(SnippetProcessor.NULL.process(ctx, snippet)).isSameAs(snippet);
   }
 
   @Test
   public void testUndefinedMacro1() {
     UndefinedMacroException e = new UndefinedMacroException(TestMacros.TEST);
-    assertSame(TestMacros.TEST, e.key());
+    assertThat(e.key()).isSameAs(TestMacros.TEST);
   }
 
   @Test
   public void testUndefinedMacro2() {
     UndefinedMacroException e = new UndefinedMacroException(TestMacros.TEST, "msg");
-    assertSame(TestMacros.TEST, e.key());
+    assertThat(e.key()).isSameAs(TestMacros.TEST);
   }
 
   @Test
   public void testUrlEncoding() {
-    assertEquals("", process(""));
-    assertEquals("{!+/}", process("{!+/}"));
-    assertEquals("%!+/%", process("%!+/%"));
-    assertEquals(esc("aaa"), process("%{aaa}%"));
-    assertEquals(esc("!+/"), process("%{!+/}%"));
-    assertEquals(esc("!+/") + esc("aaa"), process("%{!+/}%%{aaa}%"));
-    assertEquals(esc2("!+/") + esc("aaa"), process("%{%{!+/}%aaa}%"));
-    assertEquals(
-        esc2(esc2(esc2(esc2(esc2("!"))))),
-        process("%{%{%{%{%{%{%{%{%{%{!}%}%}%}%}%}%}%}%}%}%"));
+    assertThat(process("")).isEqualTo("");
+    assertThat(process("{!+/}")).isEqualTo("{!+/}");
+    assertThat(process("%!+/%")).isEqualTo("%!+/%");
+    assertThat(process("%{aaa}%")).isEqualTo(esc("aaa"));
+    assertThat(process("%{!+/}%")).isEqualTo(esc("!+/"));
+    assertThat(process("%{!+/}%%{aaa}%")).isEqualTo(esc("!+/") + esc("aaa"));
+    assertThat(process("%{%{!+/}%aaa}%")).isEqualTo(esc2("!+/") + esc("aaa"));
+    assertThat(process("%{%{%{%{%{%{%{%{%{%{!}%}%}%}%}%}%}%}%}%}%"))
+        .isEqualTo(esc2(esc2(esc2(esc2(esc2("!"))))));
   }
 
   @Test
   public void testUrlEncodingBad() {
-    assertEquals("bad!}%", process("bad!}%"));
-    assertEquals("bad!}%" + esc("+"), process("bad!}%%{+}%"));
-    assertEquals("bad!", process("bad!%{"));
-    assertEquals("bad!", process("%{bad!"));
-    assertEquals(esc("good!") + "{bad!}%", process("%{good!}%{bad!}%"));
+    assertThat(process("bad!}%")).isEqualTo("bad!}%");
+    assertThat(process("bad!}%%{+}%")).isEqualTo("bad!}%" + esc("+"));
+    assertThat(process("bad!%{")).isEqualTo("bad!");
+    assertThat(process("%{bad!")).isEqualTo("bad!");
+    assertThat(process("%{good!}%{bad!}%")).isEqualTo(esc("good!") + "{bad!}%");
   }
 
   @Test
   public void testMacro() {
-    assertNotNull(processor.toString());
+    assertThat(processor.toString()).isNotNull();
 
-    assertEquals("${UNKNOWN_MACRO}", process("${UNKNOWN_MACRO}"));
-    assertEquals("#", process(TestMacros.TEST.key()));
-    assertEquals(esc("#"), process("%{" + TestMacros.TEST.key() + "}%"));
+    assertThat(process("${UNKNOWN_MACRO}")).isEqualTo("${UNKNOWN_MACRO}");
+    assertThat(process(TestMacros.TEST.key())).isEqualTo("#");
+    assertThat(process("%{" + TestMacros.TEST.key() + "}%")).isEqualTo(esc("#"));
+    assertThat(process(TestMacros.MACRO_NREC.key())).isEqualTo("#");
+    assertThat(process(TestMacros.MACRO_REC.key())).isEqualTo(TestMacros.MACRO_REC.key());
   }
 
   private String process(String snippet) {
@@ -165,10 +180,32 @@ public class SnippetProcessorTest {
   }
 
   static enum TestMacros implements SnippetMacroType {
-    TEST;
+    TEST("${TEST}"),
+    MACRO_NREC("${MACRO_NREC}"),
+    MACRO_REC("${MACRO_REC}");
 
-    @Override public String key() {
-      return "${TEST}";
+    private static final ImmutableMap<String, TestMacros> LOOKUP_KEY;
+
+    static {
+      ImmutableMap.Builder<String, TestMacros> builder = ImmutableMap.builder();
+      for (TestMacros snippetMacro : values()) {
+        builder.put(snippetMacro.key, snippetMacro);
+      }
+      LOOKUP_KEY = builder.build();
+    }
+
+    private final String key;
+
+    private TestMacros(String key) {
+      this.key = key;
+    }
+
+    @Override public final String key() {
+      return key;
+    }
+
+    public static TestMacros valueOfKey(String key) {
+      return LOOKUP_KEY.get(key);
     }
   }
 }

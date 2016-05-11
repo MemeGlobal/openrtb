@@ -25,6 +25,9 @@ import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.util.Set;
 
@@ -32,6 +35,7 @@ import java.util.Set;
  * Desserializes OpenRTB messages from JSON.
  */
 public abstract class AbstractOpenRtbJsonReader {
+  static final Logger logger = LoggerFactory.getLogger(AbstractOpenRtbJsonReader.class);
   private final OpenRtbJsonFactory factory;
 
   protected AbstractOpenRtbJsonReader(OpenRtbJsonFactory factory) {
@@ -42,7 +46,7 @@ public abstract class AbstractOpenRtbJsonReader {
     return factory;
   }
 
-  protected <EB extends ExtendableBuilder<?, EB>>
+  protected final <EB extends ExtendableBuilder<?, EB>>
   void readOther(EB msg, JsonParser par, String fieldName) throws IOException {
     if ("ext".equals(fieldName)) {
       readExtensions(msg, par);
@@ -56,12 +60,13 @@ public abstract class AbstractOpenRtbJsonReader {
    *
    * @param msg Builder of a message that may contain extensions
    * @param par The JSON parser, positioned at the "ext" field
+   * @param <EB> Type of message builder being constructed
    * @throws IOException any parsing error
    */
-  protected <EB extends ExtendableBuilder<?, EB>>
+  protected final <EB extends ExtendableBuilder<?, EB>>
   void readExtensions(EB msg, JsonParser par) throws IOException {
     @SuppressWarnings("unchecked")
-    Set<OpenRtbJsonExtReader<EB, ?>> extReaders = factory.getReaders((Class<EB>) msg.getClass());
+    Set<OpenRtbJsonExtReader<EB>> extReaders = factory.getReaders((Class<EB>) msg.getClass());
     if (extReaders.isEmpty()) {
       par.skipChildren();
       return;
@@ -73,25 +78,37 @@ public abstract class AbstractOpenRtbJsonReader {
 
     while (true) {
       boolean extRead = false;
-      for (OpenRtbJsonExtReader<EB, ?> extReader : extReaders) {
-        extReader.read(msg, par);
-        JsonToken tokNew = par.getCurrentToken();
-        JsonLocation locNew = par.getCurrentLocation();
-        boolean advanced = tokNew != tokLast || !locNew.equals(locLast);
-        extRead |= advanced;
+      for (OpenRtbJsonExtReader<EB> extReader : extReaders) {
+        if (extReader.filter(par)) {
+          extReader.read(msg, par);
+          JsonToken tokNew = par.getCurrentToken();
+          JsonLocation locNew = par.getCurrentLocation();
+          boolean advanced = tokNew != tokLast || !locNew.equals(locLast);
+          extRead |= advanced;
 
-        if (!endObject(par)) {
-          return;
-        } else if (advanced && par.getCurrentToken() != JsonToken.FIELD_NAME) {
-          tokLast = par.nextToken();
-          locLast = par.getCurrentLocation();
-        } else {
-          tokLast = tokNew;
-          locLast = locNew;
+          if (!endObject(par)) {
+            return;
+          } else if (advanced && par.getCurrentToken() != JsonToken.FIELD_NAME) {
+            tokLast = par.nextToken();
+            locLast = par.getCurrentLocation();
+          } else {
+            tokLast = tokNew;
+            locLast = locNew;
+          }
         }
       }
 
+      if (!endObject(par)) {
+        // Can't rely on this exit condition inside the for loop because no readers may filter.
+        return;
+      }
+
       if (!extRead) {
+        // No field was consumed by any reader, so we need to skip the field to make progress.
+        if (logger.isDebugEnabled()) {
+          logger.debug("Extension field not consumed by any reader, skipping: {} @{}:{}",
+              par.getCurrentName(), locLast.getLineNr(), locLast.getCharOffset());
+        }
         par.nextToken();
         par.skipChildren();
         tokLast = par.nextToken();
@@ -99,5 +116,28 @@ public abstract class AbstractOpenRtbJsonReader {
       }
       // Else loop, try all readers again
     }
+  }
+
+  protected final boolean checkEnum(Enum<?> e) {
+    if (e == null) {
+      if (factory.isStrict()) {
+        throw new IllegalArgumentException("Invalid enumerated value");
+      } else {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Special case for empty-string input. Returning null in non-@Nullable method,
+   * but this is non-strict mode anyway.
+   */
+  protected boolean emptyToNull(JsonParser par) throws IOException {
+    JsonToken token = par.getCurrentToken();
+    if (token == null) {
+      token = par.nextToken();
+    }
+    return !factory().isStrict() && token == null;
   }
 }

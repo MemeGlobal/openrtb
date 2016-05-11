@@ -16,23 +16,15 @@
 
 package com.google.openrtb.util;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
+import static com.google.common.truth.Truth.assertThat;
 
-import com.google.common.base.Function;
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
 import com.google.openrtb.OpenRtb.BidRequest;
 import com.google.openrtb.OpenRtb.BidRequest.Imp;
 import com.google.openrtb.OpenRtb.BidRequest.Imp.Banner;
+import com.google.openrtb.OpenRtb.BidRequest.Imp.Native;
 import com.google.openrtb.OpenRtb.BidRequest.Imp.Video;
+import com.google.openrtb.OpenRtb.BidRequest.User.Gender;
 import com.google.openrtb.OpenRtb.BidResponse;
 import com.google.openrtb.OpenRtb.BidResponse.SeatBid;
 import com.google.openrtb.OpenRtb.BidResponse.SeatBid.Bid;
@@ -41,8 +33,9 @@ import com.google.openrtb.OpenRtb.ContentCategory;
 import org.junit.Test;
 
 import java.util.Iterator;
-
-import javax.annotation.Nullable;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Tests for {@link OpenRtbUtils}.
@@ -51,91 +44,102 @@ public class OpenRtbUtilsTest {
 
   @Test
   public void testCatUtils() {
-    assertEquals(ContentCategory.IAB10_1, OpenRtbUtils.categoryFromName("IAB10_1"));
-    assertEquals(ContentCategory.IAB10_1, OpenRtbUtils.categoryFromName("IAB10-1"));
-    assertEquals("IAB10-1", OpenRtbUtils.categoryToJsonName("IAB10-1"));
-    assertEquals("IAB10-1", OpenRtbUtils.categoryToJsonName("IAB10_1"));
-    assertEquals("IAB10-1", OpenRtbUtils.categoryToJsonName(ContentCategory.IAB10_1));
+    assertThat(OpenRtbUtils.categoryFromName("IAB10_1")).isSameAs(ContentCategory.IAB10_1);
+    assertThat(OpenRtbUtils.categoryFromName("IAB10-1")).isSameAs(ContentCategory.IAB10_1);
+    assertThat(OpenRtbUtils.categoryToJsonName("IAB10-1")).isEqualTo("IAB10-1");
+    assertThat(OpenRtbUtils.categoryToJsonName("IAB10_1")).isEqualTo("IAB10-1");
+    assertThat(OpenRtbUtils.categoryToJsonName(ContentCategory.IAB10_1)).isEqualTo("IAB10-1");
+  }
+
+  @Test
+  public void testGenderUtils() {
+    assertThat(OpenRtbUtils.genderFromName("M")).isSameAs(Gender.MALE);
+    assertThat(OpenRtbUtils.genderFromName("MALE")).isSameAs(Gender.MALE);
+    assertThat(OpenRtbUtils.genderToJsonName(Gender.MALE)).isEqualTo("M");
   }
 
   @Test
   public void testRequest_imps() {
     BidRequest request = BidRequest.newBuilder().setId("1").build();
-    assertTrue(Iterables.isEmpty(OpenRtbUtils.impsWith(
-        request, Predicates.<Imp>alwaysTrue(), true, true)));
+    assertThat(OpenRtbUtils.impsWith(request, imp -> true)).isEmpty();
     request = request.toBuilder().addImp(Imp.newBuilder().setId("1")).build();
-    assertEquals(1, Iterables.size(OpenRtbUtils.impsWith(
-        request, Predicates.<Imp>alwaysTrue(), true, true)));
-    assertTrue(Iterables.isEmpty(OpenRtbUtils.impsWith(request, new Predicate<Imp>() {
-      @Override public boolean apply(Imp imp) {
-        return "notfound".equals(imp.getId());
-      }
-    }, true, true)));
-    assertEquals(1, Iterables.size(OpenRtbUtils.impsWith(request, new Predicate<Imp>() {
-      @Override public boolean apply(Imp imp) {
-        return "1".equals(imp.getId());
-      }
-    }, true, true)));
-    assertNotNull(OpenRtbUtils.impWithId(request, "1"));
+    assertThat(OpenRtbUtils.impsWith(request, imp -> true)).hasSize(1);
+    assertThat(OpenRtbUtils.impsWith(request, imp -> "notfound".equals(imp.getId()))).isEmpty();
+    assertThat(OpenRtbUtils.impsWith(request, imp -> "1".equals(imp.getId()))).hasSize(1);
+    assertThat(OpenRtbUtils.impWithId(request, "1")).isNotNull();
+    assertThat(OpenRtbUtils.impStreamWith(request, imp -> "1".equals(imp.getId())).count())
+        .isEqualTo(1);
   }
 
   @Test
-  public void testRequest_banners() {
+  public void testRequest_imps_oftype() {
     BidRequest request = BidRequest.newBuilder()
         .setId("1")
         .addImp(Imp.newBuilder().setId("1").setBanner(Banner.newBuilder().setId("0")))
         .addImp(Imp.newBuilder().setId("2").setBanner(Banner.newBuilder().setId("0")))
         .addImp(Imp.newBuilder().setId("3").setBanner(Banner.newBuilder().setId("0")))
         .addImp(Imp.newBuilder().setId("4").setBanner(Banner.newBuilder().setId("0")))
+        .addImp(Imp.newBuilder().setId("5").setVideo(Video.newBuilder()))
+        .addImp(Imp.newBuilder().setId("6").setVideo(Video.newBuilder()))
+        .addImp(Imp.newBuilder().setId("7").setNative(Native.newBuilder()))
         .build();
-    assertEquals(4, Iterables.size(OpenRtbUtils.impsWith(
-        request, Predicates.<Imp>alwaysTrue(), true, false)));
-    assertTrue(Iterables.isEmpty(OpenRtbUtils.impsWith(
-        request, Predicates.<Imp>alwaysFalse(), true, false)));
+
+    // Banner
+
+    assertThat(OpenRtbUtils.impsWith(request, OpenRtbUtils.addFilters(
+        imp -> true, true, false, false))).hasSize(4);
+    assertThat(OpenRtbUtils.impsWith(request, OpenRtbUtils.addFilters(
+        OpenRtbUtils.IMP_ALL, true, false, false))).hasSize(4);
+    assertThat(OpenRtbUtils.impsWith(request, OpenRtbUtils.addFilters(
+        imp -> false, true, false, false))).isEmpty();
+    assertThat(OpenRtbUtils.impsWith(request, OpenRtbUtils.addFilters(
+        OpenRtbUtils.IMP_NONE, true, false, false))).isEmpty();
     // Filter-all case
-    assertEquals(4, Iterables.size(OpenRtbUtils.impsWith(request, new Predicate<Imp>() {
-      @Override public boolean apply(Imp imp) {
-        return "0".equals(imp.getBanner().getId());
-      }
-    }, true, false)));
+    assertThat(OpenRtbUtils.impsWith(request, OpenRtbUtils.addFilters(
+        imp -> "0".equals(imp.getBanner().getId()), true, false, false))).hasSize(4);
     // Filter-none case
-    assertEquals(0, Iterables.size(OpenRtbUtils.impsWith(request, new Predicate<Imp>() {
-      @Override public boolean apply(Imp imp) {
-        return "1".equals(imp.getBanner().getId());
-      }
-    }, true, false)));
+    assertThat(OpenRtbUtils.impsWith(request, OpenRtbUtils.addFilters(
+        imp -> "1".equals(imp.getBanner().getId()), true, false, false))).isEmpty();
     // Filter-1 case
-    assertEquals(1, Iterables.size(OpenRtbUtils.impsWith(request, new Predicate<Imp>() {
-      @Override public boolean apply(Imp imp) {
-        return "1".equals(imp.getId());
-      }
-    }, true, false)));
+    assertThat(OpenRtbUtils.impsWith(request, OpenRtbUtils.addFilters(
+        imp -> "1".equals(imp.getId()), true, false, false))).hasSize(1);
     // Filter-N case
-    assertEquals(3, Iterables.size(OpenRtbUtils.impsWith(request, new Predicate<Imp>() {
-      @Override public boolean apply(Imp imp) {
-        return imp.getId().compareTo("1") > 0;
-      }
-    }, true, false)));
-    assertNull(OpenRtbUtils.bannerImpWithId(request, "notfound", "2"));
-    assertNull(OpenRtbUtils.bannerImpWithId(request, "1", "notfound"));
-    assertNotNull(OpenRtbUtils.bannerImpWithId(request, "1", "0"));
+    assertThat(OpenRtbUtils.impsWith(request, OpenRtbUtils.addFilters(
+        imp -> imp.getId().compareTo("1") > 0, true, false, false))).hasSize(3);
+    assertThat(OpenRtbUtils.bannerImpWithId(request, "notfound", "2")).isNull();
+    assertThat(OpenRtbUtils.bannerImpWithId(request, "1", "notfound")).isNull();
+    assertThat(OpenRtbUtils.bannerImpWithId(request, "1", "0")).isNotNull();
+
+    // Video
+
+    assertThat(OpenRtbUtils.impsWith(request, OpenRtbUtils.addFilters(
+        imp -> true, false, true, false))).hasSize(2);
+
+    // Native
+
+    assertThat(OpenRtbUtils.impsWith(request, OpenRtbUtils.addFilters(
+        imp -> true, false, false, true))).hasSize(1);
+
+    // Mixed
+
+    assertThat(OpenRtbUtils.impsWith(request, OpenRtbUtils.addFilters(
+        imp -> true, true, true, false))).hasSize(6);
+    assertThat(OpenRtbUtils.impsWith(request, OpenRtbUtils.addFilters(
+        imp -> true, true, false, true))).hasSize(5);
+    assertThat(OpenRtbUtils.impsWith(request, OpenRtbUtils.addFilters(
+        imp -> true, false, true, true))).hasSize(3);
+    assertThat(OpenRtbUtils.impsWith(request, OpenRtbUtils.addFilters(
+        imp -> true, true, true, true))).hasSize(7);
   }
 
   @Test
-  public void testRequest_videos() {
-    BidRequest request = BidRequest.newBuilder()
-        .setId("1")
-        .addImp(Imp.newBuilder().setId("1").setVideo(Video.newBuilder()))
-        .build();
-    assertEquals(1, Iterables.size(OpenRtbUtils.impsWith(
-        request, Predicates.<Imp>alwaysTrue(), false, true)));
-    assertTrue(Iterables.isEmpty(OpenRtbUtils.impsWith(
-        request, Predicates.<Imp>alwaysFalse(), false, true)));
-    assertEquals(1, Iterables.size(OpenRtbUtils.impsWith(request, new Predicate<Imp>() {
-      @Override public boolean apply(Imp imp) {
-        return imp.hasVideo();
-      }
-    }, false, true)));
+  public void testAddFilter_specialCases() {
+    Predicate<Imp> pred = imp -> true;
+    assertThat(OpenRtbUtils.addFilters(pred, false, false, false)).isSameAs(pred);
+    assertThat(OpenRtbUtils.addFilters(OpenRtbUtils.IMP_NONE, true, true, true))
+        .isSameAs(OpenRtbUtils.IMP_NONE);
+    assertThat(OpenRtbUtils.addFilters(OpenRtbUtils.IMP_ALL, true, true, true))
+        .isNotSameAs(OpenRtbUtils.IMP_ALL);  // Mostly for coverage
   }
 
   @Test
@@ -144,47 +148,45 @@ public class OpenRtbUtilsTest {
     OpenRtbUtils.seatBid(response, "unused");
     OpenRtbUtils.seatBid(response); // no seat
     SeatBid.Builder seatbidAnon = OpenRtbUtils.seatBid(response);
-    assertSame(seatbidAnon, OpenRtbUtils.seatBid(response));
+    assertThat(OpenRtbUtils.seatBid(response)).isSameAs(seatbidAnon);
     SeatBid.Builder seatbidX = OpenRtbUtils.seatBid(response, "x");
-    assertSame(seatbidX, OpenRtbUtils.seatBid(response, "x"));
-    assertNotSame(seatbidX, OpenRtbUtils.seatBid(response));
-    assertTrue(Iterables.isEmpty(OpenRtbUtils.bids(response)));
+    assertThat(OpenRtbUtils.seatBid(response, "x")).isSameAs(seatbidX);
+    assertThat(OpenRtbUtils.seatBid(response)).isNotSameAs(seatbidX);
+    assertThat(OpenRtbUtils.bids(response)).isEmpty();
     Bid bid1 = buildHtmlBid("1", 100).build();
     OpenRtbUtils.seatBid(response).addBid(bid1);
     Bid bid11 = buildHtmlBid("11", 100).build();
     OpenRtbUtils.seatBid(response).addBid(bid11);
-    assertEquals(2, Iterables.size(OpenRtbUtils.bids(response)));
-    assertTrue(Iterables.isEmpty(OpenRtbUtils.bids(response, "none")));
-    assertEquals(2, Iterables.size(OpenRtbUtils.bids(response, null)));
-    assertEquals(bid1, OpenRtbUtils.bidWithId(response, "1").build());
+    assertThat(OpenRtbUtils.bids(response)).hasSize(2);
+    assertThat(OpenRtbUtils.bids(response, "none")).isEmpty();
+    assertThat(OpenRtbUtils.bids(response, null)).hasSize(2);
+    assertThat(OpenRtbUtils.bidWithId(response, "1").build()).isEqualTo(bid1);
     Bid bid2 = buildHtmlBid("2", 100).build();
     Bid bidUnused = buildHtmlBid("unused", 100).build();
     OpenRtbUtils.seatBid(response, "x").addBid(bidUnused);
     OpenRtbUtils.seatBid(response, "x").addBid(bid2);
     Bid bid22 = buildHtmlBid("22", 100).build();
     OpenRtbUtils.seatBid(response, "x").addBid(bid22);
-    assertEquals(bid2, OpenRtbUtils.bidWithId(response, "x", "2").build());
-    assertNull(OpenRtbUtils.bidWithId(response, "x", "1"));
-    assertNull(OpenRtbUtils.bidWithId(response, "none"));
-    assertNull(OpenRtbUtils.bidWithId(response, "none", "1"));
-    assertNotNull(OpenRtbUtils.bidWithId(response, null, "1"));
-    assertTrue(Iterables.elementsEqual(
-        ImmutableList.of(bid1, bid11, bidUnused, bid2, bid22),
-        BuilderToBid.toBids(OpenRtbUtils.bids(response))));
-    assertTrue(Iterables.elementsEqual(
-        ImmutableList.of(bid1, bid11),
-        BuilderToBid.toBids(OpenRtbUtils.bids(response, null))));
-    assertTrue(Iterables.elementsEqual(
-        ImmutableList.of(bidUnused, bid2, bid22),
-        BuilderToBid.toBids(OpenRtbUtils.bids(response, "x"))));
-    Predicate<Bid.Builder> filterGoodBids = new Predicate<Bid.Builder>(){
-      @Override public boolean apply(Bid.Builder bid) {
-        return !"unused".equals(bid.getId());
-      }};
-    assertEquals(4, Iterables.size(OpenRtbUtils.bidsWith(response, filterGoodBids)));
-    assertTrue(Iterables.isEmpty(OpenRtbUtils.bidsWith(response, "none", filterGoodBids)));
-    assertEquals(2, Iterables.size(OpenRtbUtils.bidsWith(response, "x", filterGoodBids)));
-    assertEquals(2, Iterables.size(OpenRtbUtils.bidsWith(response, null, filterGoodBids)));
+    assertThat(OpenRtbUtils.bidWithId(response, "x", "2").build()).isEqualTo(bid2);
+    assertThat(OpenRtbUtils.bidWithId(response, "x", "1")).isNull();
+    assertThat(OpenRtbUtils.bidWithId(response, "none")).isNull();
+    assertThat(OpenRtbUtils.bidWithId(response, "none", "1")).isNull();
+    assertThat(OpenRtbUtils.bidWithId(response, null, "1")).isNotNull();
+    Function<Bid.Builder, Bid> build = bid -> bid.buildPartial();
+    assertThat(ImmutableList.copyOf(OpenRtbUtils.bidsWith(response, OpenRtbUtils.SEAT_ANY, null))
+        .stream().map(build).collect(Collectors.toList()))
+        .containsExactly(bid1, bid11, bidUnused, bid2, bid22);
+    assertThat(OpenRtbUtils.bids(response, null).stream().map(build).collect(Collectors.toList()))
+        .containsExactly(bid1, bid11);
+    assertThat(OpenRtbUtils.bids(response, "x").stream().map(build).collect(Collectors.toList()))
+        .containsExactly(bidUnused, bid2, bid22);
+    Predicate<Bid.Builder> filterGoodBids = bid -> !"unused".equals(bid.getId());
+    assertThat(OpenRtbUtils.bidsWith(response, OpenRtbUtils.SEAT_ANY, filterGoodBids)).hasSize(4);
+    assertThat(OpenRtbUtils.bidStreamWith(response, OpenRtbUtils.SEAT_ANY, filterGoodBids).count())
+        .isEqualTo(4);
+    assertThat(OpenRtbUtils.bidsWith(response, "none", filterGoodBids)).isEmpty();
+    assertThat(OpenRtbUtils.bidsWith(response, "x", filterGoodBids)).hasSize(2);
+    assertThat(OpenRtbUtils.bidsWith(response, null, filterGoodBids)).hasSize(2);
   }
 
   @Test(expected = UnsupportedOperationException.class)
@@ -197,33 +199,30 @@ public class OpenRtbUtilsTest {
   }
 
   @Test
-  public void testResponse_filter() {
+  public void testResponse_remove() {
     BidResponse.Builder response = BidResponse.newBuilder()
         .addSeatbid(SeatBid.newBuilder()
             .addBid(buildHtmlBid("1", 100))
             .addBid(buildHtmlBid("2", 100))
             .addBid(buildHtmlBid("3", 200)))
         .addSeatbid(SeatBid.newBuilder().setSeat("unused"));
-    OpenRtbUtils.filterBids(response, Predicates.<Bid.Builder>alwaysTrue());
-    assertEquals(3, Iterables.size(OpenRtbUtils.bids(response)));
-    assertTrue(OpenRtbUtils.filterBids(response, new Predicate<Bid.Builder>() {
-      @Override public boolean apply(Bid.Builder bid) {
-        return !"1".equals(bid.getId());
-      }}));
-    assertEquals(2, Iterables.size(OpenRtbUtils.bids(response)));
+    OpenRtbUtils.removeBids(response, bid -> true);
+    assertThat(OpenRtbUtils.bids(response)).hasSize(3);
+    assertThat(OpenRtbUtils.removeBids(response, bid -> !"1".equals(bid.getId()))).isTrue();
+    assertThat(OpenRtbUtils.bids(response)).hasSize(2);
     OpenRtbUtils.seatBid(response, "x").addBid(buildHtmlBid("unused", 100));
     OpenRtbUtils.seatBid(response, "x").addBid(buildHtmlBid("4", 100));
-    assertTrue(OpenRtbUtils.filterBids(response, "x", new Predicate<Bid.Builder>() {
-      @Override public boolean apply(Bid.Builder bid) {
-        return !"4".equals(bid.getId());
-      }}));
-    assertEquals(1, Iterables.size(OpenRtbUtils.bids(response, "x")));
-    assertFalse(OpenRtbUtils.filterBids(response, "none", Predicates.<Bid.Builder>alwaysFalse()));
-    assertTrue(OpenRtbUtils.filterBids(response, null, Predicates.<Bid.Builder>alwaysFalse()));
-    assertTrue(OpenRtbUtils.filterBids(response, "x", Predicates.<Bid.Builder>alwaysFalse()));
-    assertTrue(Iterables.isEmpty(OpenRtbUtils.bids(response, "x")));
-    assertFalse(OpenRtbUtils.filterBids(response, Predicates.<Bid.Builder>alwaysFalse()));
-    assertTrue(Iterables.isEmpty(OpenRtbUtils.bids(response)));
+    assertThat(OpenRtbUtils.removeBids(response, "x", bid -> !"4".equals(bid.getId()))).isTrue();
+    assertThat(OpenRtbUtils.bids(response, "x")).hasSize(1);
+    assertThat(OpenRtbUtils.removeBids(response, "none", bid -> false))
+        .isFalse();
+    assertThat(OpenRtbUtils.removeBids(response, null, bid -> false))
+        .isTrue();
+    assertThat(OpenRtbUtils.removeBids(response, "x", bid -> false))
+        .isTrue();
+    assertThat(OpenRtbUtils.bids(response, "x")).isEmpty();
+    assertThat(OpenRtbUtils.removeBids(response, bid -> false)).isFalse();
+    assertThat(OpenRtbUtils.bids(response)).isEmpty();
   }
 
   @Test
@@ -232,38 +231,24 @@ public class OpenRtbUtilsTest {
         .addBid(buildHtmlBid("1", 100))
         .addBid(buildHtmlBid("2", 200)));
     OpenRtbUtils.seatBid(response, "unused");
-    Function<Bid.Builder, Boolean> inflation = new Function<Bid.Builder, Boolean>() {
-      @Override public Boolean apply(Bid.Builder bid) {
-        if (bid.getPrice() < 150) {
-          bid.setPrice(bid.getPrice() * 2);
-          return true;
-        } else {
-          return false;
-        }
-      }};
-    Function<Bid.Builder, Boolean> noUpdates = new Function<Bid.Builder, Boolean>() {
-      @Override public Boolean apply(@Nullable Bid.Builder bid) {
+    Function<Bid.Builder, Boolean> inflation = bid -> {
+      if (bid.getPrice() < 150) {
+        bid.setPrice(bid.getPrice() * 2);
+        return true;
+      } else {
         return false;
-      }};
-    assertTrue(OpenRtbUtils.updateBids(response, inflation));
-    assertFalse(OpenRtbUtils.updateBids(response, noUpdates));
-    assertFalse(OpenRtbUtils.updateBids(response, noUpdates));
+      }
+    };
+    Function<Bid.Builder, Boolean> noUpdates = bid -> false;
+    assertThat(OpenRtbUtils.updateBids(response, inflation)).isTrue();
+    assertThat(OpenRtbUtils.updateBids(response, noUpdates)).isFalse();
+    assertThat(OpenRtbUtils.updateBids(response, noUpdates)).isFalse();
     OpenRtbUtils.seatBid(response, "x").addBid(buildHtmlBid("1", 100));
     OpenRtbUtils.seatBid(response, "x").addBid(buildHtmlBid("2", 200));
-    assertTrue(OpenRtbUtils.updateBids(response, "x", inflation));
-    assertFalse(OpenRtbUtils.updateBids(response, "x", noUpdates));
-    assertFalse(OpenRtbUtils.updateBids(response, "none", noUpdates));
-    assertFalse(OpenRtbUtils.updateBids(response, null, noUpdates));
-  }
-
-  static class BuilderToBid implements Function<Bid.Builder, Bid> {
-    static final BuilderToBid INSTANCE = new BuilderToBid();
-    @Override public Bid apply(Bid.Builder builder) {
-      return builder.buildPartial();
-    }
-    static Iterable<Bid> toBids(Iterable<Bid.Builder> builders) {
-      return Iterables.transform(builders, INSTANCE);
-    }
+    assertThat(OpenRtbUtils.updateBids(response, "x", inflation)).isTrue();
+    assertThat(OpenRtbUtils.updateBids(response, "x", noUpdates)).isFalse();
+    assertThat(OpenRtbUtils.updateBids(response, "none", noUpdates)).isFalse();
+    assertThat(OpenRtbUtils.updateBids(response, null, noUpdates)).isFalse();
   }
 
   private static Bid.Builder buildHtmlBid(String id, long bidMicros) {

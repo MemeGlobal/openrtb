@@ -32,11 +32,11 @@ import java.io.Writer;
 
 /**
  * Serializes OpenRTB {@link NativeRequest}/{@link NativeResponse} messages to JSON.
- * <p>
- * Note: Among methods that write to a {@link JsonGenerator} parameter, only the {@code public}
+ *
+ * <p>Note: Among methods that write to a {@link JsonGenerator} parameter, only the {@code public}
  * methods will call {@code flush()} on the generator before returning.
- * <p>
- * This class is threadsafe.
+ *
+ * <p>This class is threadsafe.
  */
 public class OpenRtbNativeJsonWriter extends AbstractOpenRtbJsonWriter {
   private OpenRtbJsonWriter coreWriter;
@@ -81,10 +81,14 @@ public class OpenRtbNativeJsonWriter extends AbstractOpenRtbJsonWriter {
    */
   public final void writeNativeRequest(NativeRequest req, JsonGenerator gen) throws IOException {
     gen.writeStartObject();
-    gen.writeObjectFieldStart("native");
+    if (factory().isRootNativeField()) {
+      gen.writeObjectFieldStart("native");
+    }
     writeNativeRequestFields(req, gen);
     writeExtensions(req, gen);
-    gen.writeEndObject();
+    if (factory().isRootNativeField()) {
+      gen.writeEndObject();
+    }
     gen.writeEndObject();
     gen.flush();
   }
@@ -127,21 +131,25 @@ public class OpenRtbNativeJsonWriter extends AbstractOpenRtbJsonWriter {
     if (asset.hasRequired()) {
       writeIntBoolField("required", asset.getRequired(), gen);
     }
-    if (asset.hasTitle()) {
-      gen.writeFieldName("title");
-      writeReqTitle(asset.getTitle(), gen);
-    }
-    if (asset.hasImg()) {
-      gen.writeFieldName("img");
-      writeReqImage(asset.getImg(), gen);
-    }
-    if (asset.hasVideo()) {
-      gen.writeFieldName("video");
-      coreWriter().writeVideo(asset.getVideo(), gen);
-    }
-    if (asset.hasData()) {
-      gen.writeFieldName("data");
-      writeReqData(asset.getData(), gen);
+    switch (asset.getAssetOneofCase()) {
+      case TITLE:
+        gen.writeFieldName("title");
+        writeReqTitle(asset.getTitle(), gen);
+        break;
+      case IMG:
+        gen.writeFieldName("img");
+        writeReqImage(asset.getImg(), gen);
+        break;
+      case VIDEO:
+        gen.writeFieldName("video");
+        coreWriter().writeVideo(asset.getVideo(), gen);
+        break;
+      case DATA:
+        gen.writeFieldName("data");
+        writeReqData(asset.getData(), gen);
+        break;
+      case ASSETONEOF_NOT_SET:
+        checkRequired(false);
     }
   }
 
@@ -240,10 +248,14 @@ public class OpenRtbNativeJsonWriter extends AbstractOpenRtbJsonWriter {
    */
   public final void writeNativeResponse(NativeResponse resp, JsonGenerator gen) throws IOException {
     gen.writeStartObject();
-    gen.writeObjectFieldStart("native");
+    if (factory().isRootNativeField()) {
+      gen.writeObjectFieldStart("native");
+    }
     writeNativeResponseFields(resp, gen);
     writeExtensions(resp, gen);
-    gen.writeEndObject();
+    if (factory().isRootNativeField()) {
+      gen.writeEndObject();
+    }
     gen.writeEndObject();
     gen.flush();
   }
@@ -282,25 +294,29 @@ public class OpenRtbNativeJsonWriter extends AbstractOpenRtbJsonWriter {
     if (asset.hasRequired()) {
       writeIntBoolField("required", asset.getRequired(), gen);
     }
-    if (asset.hasTitle()) {
-      gen.writeFieldName("title");
-      writeRespTitle(asset.getTitle(), gen);
-    }
-    if (asset.hasImg()) {
-      gen.writeFieldName("img");
-      writeRespImage(asset.getImg(), gen);
-    }
-    if (asset.hasVideo()) {
-      gen.writeFieldName("video");
-      writeRespVideo(asset.getVideo(), gen);
-    }
-    if (asset.hasData()) {
-      gen.writeFieldName("data");
-      writeRespData(asset.getData(), gen);
-    }
     if (asset.hasLink()) {
       gen.writeFieldName("link");
       writeRespLink(asset.getLink(), gen);
+    }
+    switch (asset.getAssetOneofCase()) {
+      case TITLE:
+        gen.writeFieldName("title");
+        writeRespTitle(asset.getTitle(), gen);
+        break;
+      case IMG:
+        gen.writeFieldName("img");
+        writeRespImage(asset.getImg(), gen);
+        break;
+      case VIDEO:
+        gen.writeFieldName("video");
+        writeRespVideo(asset.getVideo(), gen);
+        break;
+      case DATA:
+        gen.writeFieldName("data");
+        writeRespData(asset.getData(), gen);
+        break;
+      case ASSETONEOF_NOT_SET:
+        checkRequired(false);
     }
   }
 

@@ -16,9 +16,7 @@
 
 package com.google.openrtb.snippet;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
+import static com.google.common.truth.Truth.assertThat;
 
 import com.google.openrtb.OpenRtb.BidRequest;
 import com.google.openrtb.OpenRtb.BidRequest.Imp;
@@ -46,14 +44,14 @@ public class OpenRtbSnippetProcessorTest {
         .setPrice(10000);
     SnippetProcessorContext ctx = new SnippetProcessorContext(req, resp);
     ctx.setBid(bid);
-    assertSame(macro, OpenRtbSnippetProcessor.ORTB_NULL.process(ctx, macro));
+    assertThat(OpenRtbSnippetProcessor.ORTB_NULL.process(ctx, macro)).isSameAs(macro);
   }
 
   @Test
   public void testOpenRtbMacros() {
     TestUtil.testCommonEnum(OpenRtbMacros.values());
-    assertSame(OpenRtbMacros.AUCTION_ID, OpenRtbMacros.valueOfKey("${AUCTION_ID}"));
-    assertNull(OpenRtbMacros.valueOfKey("${UNKNOWN_MACRO}"));
+    assertThat(OpenRtbMacros.valueOfKey("${AUCTION_ID}")).isSameAs(OpenRtbMacros.AUCTION_ID);
+    assertThat(OpenRtbMacros.valueOfKey("${UNKNOWN_MACRO}")).isNull();
   }
 
   @Test
@@ -67,32 +65,19 @@ public class OpenRtbSnippetProcessorTest {
         .build();
     Bid.Builder bid = Bid.newBuilder()
         // See docs about allowed macro dependencies.
-        .setAdid("ad-" + OpenRtbMacros.AUCTION_CURRENCY.key())
-        .setAdm("adm-" + OpenRtbMacros.AUCTION_PRICE.key())
-        .setCid("c-" + OpenRtbMacros.AUCTION_SEAT_ID.key())
-        .setCrid("cr-" + OpenRtbMacros.AUCTION_ID.key())
-        .setDealid("%{deal-" + OpenRtbMacros.AUCTION_PRICE.key() + "}%")
-        .setId("bid-" + OpenRtbMacros.AUCTION_AD_ID.key())
-        .setImpid("imp1")
-        .setIurl("http://iurl?id=" + OpenRtbMacros.AUCTION_BID_ID.key())
-        .setNurl("http://nurl?id=" + OpenRtbMacros.AUCTION_IMP_ID.key())
-        .setPrice(10000);
+        .setId("1")
+        .setImpid("1")
+        .setPrice(10000)
+        .setAdm("adm-" + OpenRtbMacros.AUCTION_ID.key());
     BidResponse.Builder resp = BidResponse.newBuilder()
-        .setBidid("bid-1")
+        .setBidid("1")
         .addSeatbid(SeatBid.newBuilder()
             .setSeat("seat1")
             .addBid(bid));
     OpenRtbSnippetProcessor processor = new OpenRtbSnippetProcessor();
     processor.process(new SnippetProcessorContext(req, resp));
     bid = resp.getSeatbidBuilder(0).getBidBuilder(0);
-    assertEquals("ad-USD", bid.getAdid());
-    assertEquals("adm-${AUCTION_PRICE}", bid.getAdm());
-    assertEquals("c-seat1", bid.getCid());
-    assertEquals("cr-req1", bid.getCrid());
-    assertEquals("deal-%24%7BAUCTION_PRICE%7D", bid.getDealid());
-    assertEquals("bid-ad-USD", bid.getId());
-    assertEquals("http://iurl?id=bid-1", bid.getIurl());
-    assertEquals("http://nurl?id=imp1", bid.getNurl());
+    assertThat(bid.getAdm()).isEqualTo("adm-req1");
   }
 
   @Test
@@ -100,20 +85,20 @@ public class OpenRtbSnippetProcessorTest {
     BidRequest request = BidRequest.newBuilder()
         .setId("req1")
         .addImp(Imp.newBuilder()
-            .setId("imp1")
+            .setId("1")
             .setBanner(Banner.newBuilder()))
         .build();
     Bid.Builder bid = Bid.newBuilder()
-        .setId("bid-" + OpenRtbMacros.AUCTION_CURRENCY.key())
-        .setImpid("imp-" + OpenRtbMacros.AUCTION_SEAT_ID.key())
-        .setPrice(10000);
+        .setId("1")
+        .setImpid("1")
+        .setPrice(10000)
+        .setAdm(OpenRtbMacros.AUCTION_CURRENCY.key());
     BidResponse.Builder resp = BidResponse.newBuilder()
         .addSeatbid(SeatBid.newBuilder().addBid(bid));
     OpenRtbSnippetProcessor processor = new OpenRtbSnippetProcessor();
     processor.process(new SnippetProcessorContext(request, resp));
     bid = resp.getSeatbidBuilder(0).getBidBuilder(0);
-    assertEquals("bid-", bid.getId());
-    assertEquals("imp-", bid.getImpid());
+    assertThat(bid.getAdm()).isEqualTo("");
   }
 
   @Test(expected = UndefinedMacroException.class)

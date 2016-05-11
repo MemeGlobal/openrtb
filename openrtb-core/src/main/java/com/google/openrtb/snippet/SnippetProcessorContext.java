@@ -20,29 +20,17 @@ import com.google.common.base.MoreObjects;
 import com.google.openrtb.OpenRtb.BidRequestOrBuilder;
 import com.google.openrtb.OpenRtb.BidResponse;
 import com.google.openrtb.OpenRtb.BidResponse.SeatBid.Bid;
-import com.google.openrtb.OpenRtb.BidResponse.SeatBid.BidOrBuilder;
-import com.google.openrtb.OpenRtb.BidResponseOrBuilder;
 import com.google.openrtb.util.ProtoUtils;
 
 /**
  * Context for {@link SnippetProcessor}.
- * <p>
- * This class is NOT threadsafe.
+ *
+ * <p>This class is NOT threadsafe.
  */
 public class SnippetProcessorContext {
   private final BidRequestOrBuilder request;
   private final BidResponse.Builder response;
   private Bid.Builder bid;
-
-  /**
-   * @deprecated
-   */
-  @Deprecated
-  public SnippetProcessorContext(BidRequestOrBuilder request, BidResponseOrBuilder response,
-      BidOrBuilder bid) {
-    this(request, (BidResponse.Builder) ProtoUtils.builder(response));
-    this.bid = ProtoUtils.builder(bid);
-  }
 
   public SnippetProcessorContext(BidRequestOrBuilder request, BidResponse.Builder response) {
     this.request = request;

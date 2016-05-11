@@ -18,7 +18,6 @@ package com.google.openrtb.json;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.LinkedHashMultimap;
@@ -41,28 +40,30 @@ import javax.annotation.Nullable;
  *   <li>Core model: {@link OpenRtbJsonWriter} and {@link OpenRtbJsonReader}</li>
  *   <li>Native model: {@link OpenRtbNativeJsonWriter} and {@link OpenRtbNativeJsonReader}</li>
  * </ul>
- * <p>
- * This class is NOT threadsafe. You should use only to configure and create the
+ *
+ * <p>This class is NOT threadsafe. You should use only to configure and create the
  * reader/writer objects, which will be threadsafe.
  */
 public class OpenRtbJsonFactory {
   private static final String FIELDNAME_ALL = "*";
 
   private JsonFactory jsonFactory;
-  private final SetMultimap<String, OpenRtbJsonExtReader<?, ?>> extReaders;
+  private boolean strict;
+  private boolean rootNativeField;
+  private final SetMultimap<String, OpenRtbJsonExtReader<?>> extReaders;
   private final Map<String, Map<String, Map<String, OpenRtbJsonExtWriter<?>>>> extWriters;
 
   protected OpenRtbJsonFactory(
       @Nullable JsonFactory jsonFactory,
-      @Nullable SetMultimap<String, OpenRtbJsonExtReader<?, ?>> extReaders,
+      boolean strict,
+      boolean rootNativeField,
+      @Nullable SetMultimap<String, OpenRtbJsonExtReader<?>> extReaders,
       @Nullable Map<String, Map<String, Map<String, OpenRtbJsonExtWriter<?>>>> extWriters) {
     this.jsonFactory = jsonFactory;
-    this.extReaders = extReaders == null
-        ? LinkedHashMultimap.<String, OpenRtbJsonExtReader<?, ?>>create()
-        : extReaders;
-    this.extWriters = extWriters == null
-        ? new LinkedHashMap<String, Map<String, Map<String, OpenRtbJsonExtWriter<?>>>>()
-        : extWriters;
+    this.strict = strict;
+    this.rootNativeField = rootNativeField;
+    this.extReaders = extReaders == null ? LinkedHashMultimap.create() : extReaders;
+    this.extWriters = extWriters == null ? new LinkedHashMap<>() : extWriters;
   }
 
   /**
@@ -73,26 +74,19 @@ public class OpenRtbJsonFactory {
    */
   protected OpenRtbJsonFactory(OpenRtbJsonFactory config) {
     this.jsonFactory = config.getJsonFactory();
+    this.strict = config.strict;
+    this.rootNativeField = config.rootNativeField;
     this.extReaders = ImmutableSetMultimap.copyOf(config.extReaders);
-    this.extWriters = ImmutableMap.copyOf(Maps.transformValues(config.extWriters, new Function<
-        Map<String, Map<String, OpenRtbJsonExtWriter<?>>>,
-        Map<String, Map<String, OpenRtbJsonExtWriter<?>>>>() {
-      @Override public Map<String, Map<String, OpenRtbJsonExtWriter<?>>> apply(
-          Map<String, Map<String, OpenRtbJsonExtWriter<?>>> map) {
-        return ImmutableMap.copyOf(Maps.transformValues(map, new Function<
-            Map<String, OpenRtbJsonExtWriter<?>>, Map<String, OpenRtbJsonExtWriter<?>>>() {
-          @Override public Map<String, OpenRtbJsonExtWriter<?>> apply(
-              Map<String, OpenRtbJsonExtWriter<?>> map) {
-            return ImmutableMap.copyOf(map);
-          }}));
-      }}));
+    this.extWriters = ImmutableMap.copyOf(Maps.transformValues(config.extWriters,
+        (Map<String, Map<String, OpenRtbJsonExtWriter<?>>> map) ->
+            ImmutableMap.copyOf(Maps.transformValues(map, map2 -> ImmutableMap.copyOf(map2)))));
   }
 
   /**
    * Creates a new factory with default configuration.
    */
   public static OpenRtbJsonFactory create() {
-    return new OpenRtbJsonFactory(null, null, null);
+    return new OpenRtbJsonFactory(null, false, false, null, null);
   }
 
   /**
@@ -104,13 +98,43 @@ public class OpenRtbJsonFactory {
   }
 
   /**
+   * Sets strict mode.
+   */
+  public final OpenRtbJsonFactory setStrict(boolean strict) {
+    this.strict = strict;
+    return this;
+  }
+
+  /**
+   * Sets root native field generation mode.
+   */
+  public final OpenRtbJsonFactory setRootNativeField(boolean rootNativeField) {
+    this.rootNativeField = rootNativeField;
+    return this;
+  }
+
+  /**
+   * Returns {@code true} for strict mode, {@code false} lenient mode.
+   */
+  public final boolean isStrict() {
+    return strict;
+  }
+
+  /**
+   * Returns {@code true} for root native field mode, {@code false} if not.
+   */
+  public final boolean isRootNativeField() {
+    return rootNativeField;
+  }
+
+  /**
    * Register an extension reader.
    *
    * @param extReader code to desserialize some extension properties
-   * @param msgKlass class of container message's builder, e.g. {@code MyImp.Builder.class}
+   * @param msgKlass class of extension message's builder, e.g. {@code MyImp.Builder.class}
    */
   public final <EB extends ExtendableBuilder<?, EB>> OpenRtbJsonFactory register(
-      OpenRtbJsonExtReader<EB, ?> extReader, Class<EB> msgKlass) {
+      OpenRtbJsonExtReader<EB> extReader, Class<EB> msgKlass) {
     extReaders.put(msgKlass.getName(), extReader);
     return this;
   }
@@ -120,13 +144,14 @@ public class OpenRtbJsonFactory {
    * used in preference to a non-field-specific writer that may exist for the same class.
    *
    * @param extWriter code to serialize some {@code extKlass}'s properties
-   * @param extKlass class of container message, e.g. {@code MyImp.class}
+   * @param extKlass class of extension message, e.g. {@code MyImp.class}
+   * @param msgKlass class of container message, e.g. {@code Imp.class}
    * @param fieldName name of the field containing the extension
    * @param <T> Type of value for the extension
    * @see #register(OpenRtbJsonExtWriter, Class, Class)
    */
   public final <T> OpenRtbJsonFactory register(OpenRtbJsonExtWriter<T> extWriter,
-    Class<T> extKlass, Class<? extends Message> msgKlass, String fieldName) {
+      Class<T> extKlass, Class<? extends Message> msgKlass, String fieldName) {
     Map<String, Map<String, OpenRtbJsonExtWriter<?>>> mapMsg = extWriters.get(msgKlass.getName());
     if (mapMsg == null) {
       extWriters.put(msgKlass.getName(), mapMsg = new LinkedHashMap<>());
@@ -144,7 +169,8 @@ public class OpenRtbJsonFactory {
    * can be used for any extension of the provided class).
    *
    * @param extWriter code to serialize some {@code extKlass}'s properties
-   * @param extKlass class of container message, e.g. {@code MyImp.class}
+   * @param extKlass class of extension message, e.g. {@code MyImp.class}
+   * @param msgKlass class of container message, e.g. {@code Imp.class}
    * @param <T> Type of value for the extension
    * @see #register(OpenRtbJsonExtWriter, Class, Class, String)
    */
@@ -161,7 +187,7 @@ public class OpenRtbJsonFactory {
   }
 
   /**
-   * Creates an {@link OpenRtbJsonWriter}, configured to the current state of this factory.
+   * Creates an {@link OpenRtbJsonReader}, configured to the current state of this factory.
    */
   public OpenRtbJsonReader newReader() {
     return new OpenRtbJsonReader(new OpenRtbJsonFactory(this));
@@ -175,7 +201,7 @@ public class OpenRtbJsonFactory {
   }
 
   /**
-   * Creates an {@link OpenRtbNativeJsonWriter}, configured to the current state of this factory.
+   * Creates an {@link OpenRtbNativeJsonReader}, configured to the current state of this factory.
    */
   public OpenRtbNativeJsonReader newNativeReader() {
     return new OpenRtbNativeJsonReader(new OpenRtbJsonFactory(this));
@@ -183,9 +209,8 @@ public class OpenRtbJsonFactory {
 
   @SuppressWarnings("unchecked")
   final <EB extends ExtendableBuilder<?, EB>>
-  Set<OpenRtbJsonExtReader<EB, ?>> getReaders(Class<EB> msgClass) {
-    return (Set<OpenRtbJsonExtReader<EB, ?>>) (Set<?>)
-        extReaders.get(msgClass.getName());
+      Set<OpenRtbJsonExtReader<EB>> getReaders(Class<EB> msgClass) {
+    return (Set<OpenRtbJsonExtReader<EB>>) (Set<?>) extReaders.get(msgClass.getName());
   }
 
   @SuppressWarnings("unchecked")

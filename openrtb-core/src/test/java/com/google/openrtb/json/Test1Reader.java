@@ -27,26 +27,24 @@ import com.fasterxml.jackson.core.JsonParser;
 import java.io.IOException;
 
 /**
- * Sample JSON reader for a regular extension of message type.
- * (Exactly the same code as for repeated extension of message type / {@link Test2Reader}.)
+ * Regular extension: {@code "test1": "data1"}, message type {@code Test1}.
+ *
+ * <p>(Exactly the same code as for repeated extension of message type / {@link Test2Reader}.)
  *
  * @param <EB> Type of message builder being constructed.  Keeping this generic parameter
- * open here allows this extension to be used inside any message; if you don't need that,
- * you can bind this to a specific message builder type, see {@link Test3Reader}.
+ *     open here allows this extension to be used inside any message; if you don't need that,
+ *     you can bind this to a specific message builder type, see {@link Test3Reader}.
  */
 class Test1Reader<EB extends ExtendableBuilder<?, EB>>
-extends OpenRtbJsonExtReader<EB, Test1.Builder> {
+    extends OpenRtbJsonExtComplexReader<EB, Test1.Builder> {
 
   public Test1Reader(GeneratedExtension<?, ?> key) {
-    super(key);
+    super(key, false, "test1");
   }
 
-  @Override protected void read(EB msg, Test1.Builder ext, JsonParser par)
-      throws IOException {
-    switch (getCurrentName(par)) {
-      case "test1":
-        ext.setTest1(par.nextTextValue());
-        break;
+  @Override protected void read(Test1.Builder ext, JsonParser par) throws IOException {
+    if ("test1".equals(getCurrentName(par))) {
+      ext.setTest1(par.nextTextValue());
     }
   }
 }

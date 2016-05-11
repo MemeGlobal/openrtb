@@ -30,7 +30,6 @@ import java.util.Map;
  */
 public class AbstractOpenRtbJsonWriter {
   private final OpenRtbJsonFactory factory;
-  private final boolean requiredAlways = false;
 
   protected AbstractOpenRtbJsonWriter(OpenRtbJsonFactory factory) {
     this.factory = factory;
@@ -45,10 +44,11 @@ public class AbstractOpenRtbJsonWriter {
    *
    * @param msg A message that may contain extensions
    * @param gen The JSON generator
+   * @param <EM> Type of message being serialized, containing extensions
    * @throws IOException any serialization error
    */
   @SuppressWarnings("unchecked")
-  protected <EM extends ExtendableMessage<EM>>
+  protected final <EM extends ExtendableMessage<EM>>
   void writeExtensions(EM msg, JsonGenerator gen) throws IOException {
     boolean openExt = false;
 
@@ -56,9 +56,23 @@ public class AbstractOpenRtbJsonWriter {
       FieldDescriptor fd = field.getKey();
       if (fd.isExtension()) {
         if (fd.isRepeated()) {
-          openExt = writeRepeated(msg, gen, fd.getName(), (List<Object>) field.getValue(), openExt);
+          List<Object> extValue = (List<Object>) field.getValue();
+          if (!extValue.isEmpty()) {
+            OpenRtbJsonExtWriter<Object> extWriter =
+                factory.getWriter(msg.getClass(), extValue.get(0).getClass(), fd.getName());
+            if (extWriter != null) {
+              openExt = openExt(gen, openExt);
+              extWriter.writeRepeated(extValue, gen);
+            }
+          }
         } else {
-          openExt = writeSingle(msg, gen, fd.getName(), field.getValue(), openExt);
+          Object extValue = field.getValue();
+          OpenRtbJsonExtWriter<Object> extWriter =
+              factory.getWriter(msg.getClass(), extValue.getClass(), fd.getName());
+          if (extWriter != null) {
+            openExt = openExt(gen, openExt);
+            extWriter.writeSingle(extValue, gen);
+          }
         }
       }
     }
@@ -68,34 +82,6 @@ public class AbstractOpenRtbJsonWriter {
     }
   }
 
-  protected <EM extends ExtendableMessage<EM>> boolean writeSingle(
-      EM msg, JsonGenerator gen, String fieldName, Object extValue, boolean openExtP)
-      throws IOException {
-    boolean openExt = openExtP;
-    OpenRtbJsonExtWriter<Object> extWriter =
-        factory.getWriter(msg.getClass(), extValue.getClass(), fieldName);
-    if (extWriter != null) {
-      openExt = openExt(gen, openExt);
-      extWriter.write(extValue, gen);
-    }
-    return openExt;
-  }
-
-  protected <EM extends ExtendableMessage<EM>> boolean writeRepeated(
-      EM msg, JsonGenerator gen, String fieldName, List<Object> extList, boolean openExtP)
-      throws IOException {
-    boolean openExt = openExtP;
-    if (!extList.isEmpty()) {
-      OpenRtbJsonExtWriter<Object> extWriter =
-          factory.getWriter(msg.getClass(), extList.get(0).getClass(), fieldName);
-      if (extWriter != null) {
-        openExt = openExt(gen, openExt);
-        extWriter.writeRepeated(extList, gen);
-      }
-    }
-    return openExt;
-  }
-
   private static boolean openExt(JsonGenerator gen, boolean openExt) throws IOException {
     if (!openExt) {
       gen.writeObjectFieldStart("ext");
@@ -103,11 +89,25 @@ public class AbstractOpenRtbJsonWriter {
     return true;
   }
 
-  protected boolean checkRequired(boolean hasProperty) {
-    return requiredAlways || hasProperty;
+  protected final boolean checkRequired(boolean hasProperty) {
+    if (!hasProperty) {
+      if (factory.isStrict()) {
+        throw new IllegalArgumentException("Required property not set");
+      } else {
+        return false;
+      }
+    }
+    return true;
   }
 
-  protected boolean checkRequired(int propertyCount) {
-    return requiredAlways || propertyCount != 0;
+  protected final boolean checkRequired(int propertyCount) {
+    if (propertyCount == 0) {
+      if (factory.isStrict()) {
+        throw new IllegalArgumentException("Required property is empty");
+      } else {
+        return false;
+      }
+    }
+    return true;
   }
 }

@@ -16,7 +16,6 @@
 
 package com.google.openrtb.util;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.openrtb.OpenRtb.BidRequest;
@@ -45,8 +44,8 @@ import javax.inject.Singleton;
  * Bids with any validation problems will cause debug logs and metric updates.
  * Fatal validation errors (that would likely cause the bid to be rejected by the exchange)
  * will also be removed from the response.
- * <p>
- * This class is threadsafe. Recommended use is as a singleton, but you may also want to create
+ *
+ * <p>This class is threadsafe. Recommended use is as a singleton, but you may also want to create
  * multiple instances if you need to keep track of metrics separately for different uses
  * (for that to make sense, provide a different {@link MetricRegistry} to each instance).
  */
@@ -69,10 +68,7 @@ public class OpenRtbValidator {
   }
 
   public boolean validate(final BidRequest request, final BidResponse.Builder response) {
-    return !OpenRtbUtils.filterBids(response, new Predicate<Bid.Builder>() {
-      @Override public boolean apply(Bid.Builder bid) {
-        return validate(request, bid);
-      }});
+    return !OpenRtbUtils.removeBids(response, bid -> validate(request, bid));
   }
 
   public boolean validate(BidRequest request, Bid.Builder bid) {

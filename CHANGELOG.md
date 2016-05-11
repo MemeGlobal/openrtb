@@ -1,7 +1,76 @@
 RELEASE NOTES
 ----------------------------------------------------------------------
 
-## Version 0.9.2, 01-08-2015
+## Version 1.0.3, 07-03-2016
+* `SnippetProcessor` allows subclasses to extend the list of fields
+  (including `Bid` extensions) that support macros, and drops the
+  built-in support to `adm` only which is more OpenRTB-compliant.
+
+## Version 1.0.2, 26-02-2016
+* Fix `ProtoUtils.filter()` for recursive filtering.
+* JSON writer doesn't emit the top-level `native` field for native
+  request or response objects. That was a poorly specified part of
+  OpenRTB 2.3 & Native 1.0, clarified in the next releases but even
+  in 2.4/1.0 this extra field should not be used.  The factory has a
+  new option `rootNativeField` to opt in the legacy writer's behavior.
+  (The reader always accepted both forms.)
+* Mapping documentation added to the proto!  The Google Sheet used for
+  this documentation is now deprecated; just look up the proto, or the
+  API docs in protoc-generated model classes (e.g. Javadoc for Java).
+
+## Version 1.0.1, 04-02-2016
+* Minor reviews in `OpenRtbJsonUtils`, javadocs, tests.
+
+## Version 1.0.0, 04-01-2016
+* Happy new year!!  And here's the one-dot-zero release of the library.
+  Series 1.0.x is now frozen, may be updated only for bugfixes.
+* Only cleanups in this release: All deprecated methods removed;
+  Dependency updates; Minor javadoc and test reviews.
+
+## Version 0.9.8, 02-11-2015
+* Improvements to `OpenRtbUtils`.
+
+## Version 0.9.7, 29-10-2015
+* THE BIG MOVE TO JAVA 8! The library now requires JDK 8, and takes
+  advantage of new APIs/features of Java 8.
+  - `ProtoUtils` and `OpenRtbUtils`: parameters with `Function` or
+    `Predicate` APIs from Guava were changed to use `java.util.function`.
+    Most code using these utilities should compile after fixing imports;
+    code already passing lambdas for those parameters must be recompiled
+    but needs no changes. Some utilities have new variants using streams,
+    for example `OpenRtbUtils.bidStreamWith()`; if you like streams, the
+    new methods are easier and often more efficient than calling the old
+    methods and doing your own conversion to a `Stream`.
+  - We won't maintain a JDK 7 compatible version of the library; notice
+    that JDK 7 was EOL'd since April 2015.
+
+## Version 0.9.6, 26-10-2015
+* JSON factory now enables strict parsing by default; previous behavior
+  was a bug. Use `setStrict(false)` if this breaks things for you.
+* In non-strict mode, the JSON readers will now return `null` instead
+  of an exception if the input is empty.
+
+## Version 0.9.5, 02-10-2015
+* No changes! This release contains only a round of reviews in code
+  style, javadocs, and unit tests (converted to Truth).
+
+## Version 0.9.4, 24-09-2015
+* `OpenRtbUtils` improved for filtering impressions with Native ads.
+
+## Version 0.9.3, 22-09-2015
+* OpenRTB proto schema review:
+  - Documentation updates; some fixes to field defaults.
+  - Mutually exclusive: `BidRequest.site/app`; `Bid.adm/adm_native`;
+    `Native.request/request_native` (introducing the latter);
+    `Asset.title/img/video/data` for both Native request and response.
+* JSON support:
+  - New config `OpenRtbJsonFactory.strict`.
+  - Parsing of unknown enums improved, lenient and strict options.
+  - Reviews in the JSON extension APIs, `OpenRtbJsonExtWriter` and
+    `OpenRtbJsonExtReader`. The latter has breaking changes, and some
+    implementations need to override `OpenRtbJsonExtComplexReader`.
+
+## Version 0.9.2, 01-09-2015
 * Fixed typo `NoBidReason.BLOCKED_PUBISHER` -> `BLOCKED_PUBLISHER`.
 
 ## Version 0.9.1, 15-07-2015
